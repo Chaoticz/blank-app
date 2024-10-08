@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import time
-import numpy as np
 import pandas as pd
 
 # Voer hier je Bitvavo API-sleutel in
