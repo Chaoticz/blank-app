@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
+import time
 import numpy as np
 import pandas as pd
-import time
 
 # Voer hier je Bitvavo API-sleutel in
 API_KEY = '275ef1c47fe97b28e0a31d998ec4ec380bca4c1c2b0c3549a72cacaf98a02bc6'  # Vervang dit door je echte API-sleutel
@@ -73,41 +73,64 @@ def decision_strategy(historical_data):
 # Streamlit app setup
 st.title("Crypto Overzicht: WIF en SOL")
 
-# Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
-current_price_wif = get_crypto_price(API_KEY, 'WIF')
-current_price_sol = get_crypto_price(API_KEY, 'SOL')
-historical_data_wif = get_historical_data(API_KEY, 'WIF')
-historical_data_sol = get_historical_data(API_KEY, 'SOL')
+# Maak een lege placeholder voor de dynamische tabel
+table_placeholder = st.empty()
 
-if current_price_wif and historical_data_wif and current_price_sol and historical_data_sol:
-    # Bereken advies voor WIF en SOL
-    current_advice_wif = decision_strategy(historical_data_wif)
-    current_advice_sol = decision_strategy(historical_data_sol)
+previous_advice_wif = None
+previous_advice_sol = None
 
-    # Maak een tabel met de gegevens van zowel WIF als SOL
-    table_data = {
-        'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'Advies'],
-        'WIF': [
-            f"{current_price_wif:.2f}",
-            f"{historical_data_wif['priceChange']:.2f}",
-            f"{historical_data_wif['volume']:.2f}",
-            f"{historical_data_wif['last']:.2f}",
-            current_advice_wif
-        ],
-        'SOL': [
-            f"{current_price_sol:.2f}",
-            f"{historical_data_sol['priceChange']:.2f}",
-            f"{historical_data_sol['volume']:.2f}",
-            f"{historical_data_sol['last']:.2f}",
-            current_advice_sol
-        ]
-    }
+# Loop om de prijs elke 10 seconden te verversen
+while True:
+    # Verkrijg huidige prijzen en historische gegevens
+    current_price_wif = get_crypto_price(API_KEY, 'WIF')
+    current_price_sol = get_crypto_price(API_KEY, 'SOL')
     
-    df = pd.DataFrame(table_data)
+    historical_data_wif = get_historical_data(API_KEY, 'WIF')
+    historical_data_sol = get_historical_data(API_KEY, 'SOL')
 
-    # Toon de tabel
-    st.table(df)
+    if current_price_wif is not None and historical_data_wif is not None and \
+       current_price_sol is not None and historical_data_sol is not None:
+        
+        # Bereken advies voor WIF en SOL
+        current_advice_wif = decision_strategy(historical_data_wif)
+        current_advice_sol = decision_strategy(historical_data_sol)
 
-# Auto-refresh functie met een bepaalde interval
-st.experimental_rerun()  # Dit vervangt de oneindige loop en zorgt voor een automatische refresh
-time.sleep(10)
+        # Maak een tabel met de gegevens van zowel WIF als SOL
+        table_data = {
+            'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'Advies'],
+            'WIF': [
+                f"{current_price_wif:.2f}",
+                f"{historical_data_wif['priceChange']:.2f}",
+                f"{historical_data_wif['volume']:.2f}",
+                f"{historical_data_wif['last']:.2f}",
+                current_advice_wif
+            ],
+            'SOL': [
+                f"{current_price_sol:.2f}",
+                f"{historical_data_sol['priceChange']:.2f}",
+                f"{historical_data_sol['volume']:.2f}",
+                f"{historical_data_sol['last']:.2f}",
+                current_advice_sol
+            ]
+        }
+        
+        df = pd.DataFrame(table_data)
+
+        # Vernieuw de tabel binnen hetzelfde element
+        table_placeholder.table(df)
+
+        # Controleer of het advies is veranderd voor WIF
+        if previous_advice_wif != current_advice_wif:
+            title = "Advies verandering voor WIF"
+            message = f"Nieuw advies: {current_advice_wif}"
+            send_push_notification(title, message)
+            previous_advice_wif = current_advice_wif
+
+        # Controleer of het advies is veranderd voor SOL
+        if previous_advice_sol != current_advice_sol:
+            title = "Advies verandering voor SOL"
+            message = f"Nieuw advies: {current_advice_sol}"
+            send_push_notification(title, message)
+            previous_advice_sol = current_advice_sol
+
+    time.sleep(10)  # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
