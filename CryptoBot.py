@@ -93,6 +93,10 @@ while True:
         current_advice_wif = decision_strategy(historical_data_wif)
         current_advice_sol = decision_strategy(historical_data_sol)
 
+        # Debug: print de huidige en vorige adviezen
+        print(f"Huidig advies WIF: {current_advice_wif}, Vorig advies WIF: {previous_advice_wif}")
+        print(f"Huidig advies SOL: {current_advice_sol}, Vorig advies SOL: {previous_advice_sol}")
+
         # Maak een tabel met de gegevens van zowel WIF als SOL
         table_data = {
             'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'Advies'],
