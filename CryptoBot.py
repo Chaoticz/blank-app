@@ -5,9 +5,9 @@ import pandas as pd
 import time
 
 # Voer hier je Bitvavo API-sleutel in
-API_KEY = '275ef1c47fe97b28e0a31d998ec4ec380bca4c1c2b0c3549a72cacaf98a02bc6'  # Vervang dit door je echte API-sleutel
-PUSHOVER_USER_KEY = 'ucag73yvz83gz9b6fz31jqux4u7i7p'  # Vervang dit door je Pushover User Key
-PUSHOVER_API_TOKEN = 'athjqvpye1dtgo4326xqg4vmu1n153'  # Vervang dit door je Pushover API Token
+API_KEY = 'YOUR_API_KEY'  # Vervang dit door je echte API-sleutel
+PUSHOVER_USER_KEY = 'YOUR_PUSHOVER_USER_KEY'  # Vervang dit door je Pushover User Key
+PUSHOVER_API_TOKEN = 'YOUR_PUSHOVER_API_TOKEN'  # Vervang dit door je Pushover API Token
 
 # Functie om Pushover notificatie te sturen
 def send_push_notification(title, message):
@@ -106,7 +106,7 @@ def decision_strategy(historical_data, prices):
             advice['RSI'] = "Verkopen"
 
     # MA logica
-    if ma_short and ma_long:
+    if ma_short is not None and ma_long is not None:
         if ma_short > ma_long:
             advice['MA'] = "Kopen"
         elif ma_short < ma_long:
@@ -124,6 +124,9 @@ def decision_strategy(historical_data, prices):
 # Streamlit app setup
 st.title("Crypto Overzicht: WIF en SOL")
 
+# Stuur startmelding
+send_push_notification("Crypto Bot Actief", "De Crypto beslissingsbot is nu actief.")
+
 # Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
 current_price_wif = get_crypto_price(API_KEY, 'WIF')
 current_price_sol = get_crypto_price(API_KEY, 'SOL')
@@ -134,48 +137,48 @@ historical_data_sol = get_historical_data(API_KEY, 'SOL')
 price_history_wif = []
 price_history_sol = []
 
-if current_price_wif and historical_data_wif and current_price_sol and historical_data_sol:
-    # Voeg huidige prijzen toe aan de geschiedenis
+# Check of prijzen en historische gegevens succesvol zijn opgehaald
+if current_price_wif is not None and historical_data_wif is not None:
     price_history_wif.append(current_price_wif)
+
+if current_price_sol is not None and historical_data_sol is not None:
     price_history_sol.append(current_price_sol)
 
+# Zorg ervoor dat de prijs geschiedenis de nodige lengte heeft voor berekeningen
+if len(price_history_wif) >= 200 and len(price_history_sol) >= 200:
     # Bereken advies voor WIF en SOL
     advice_wif = decision_strategy(historical_data_wif, price_history_wif)
     advice_sol = decision_strategy(historical_data_sol, price_history_sol)
 
     # Maak een tabel met de gegevens van zowel WIF als SOL
     table_data = {
-        'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs'],
+        'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'RSI', 'MA', 'MACD'],
         'WIF': [
             f"{current_price_wif:.2f}",
             f"{historical_data_wif['priceChange']:.2f}",
             f"{historical_data_wif['volume']:.2f}",
             f"{historical_data_wif['last']:.2f}",
+            advice_wif['RSI'],
+            advice_wif['MA'],
+            advice_wif['MACD'],
         ],
         'SOL': [
             f"{current_price_sol:.2f}",
             f"{historical_data_sol['priceChange']:.2f}",
             f"{historical_data_sol['volume']:.2f}",
             f"{historical_data_sol['last']:.2f}",
-        ]
+            advice_sol['RSI'],
+            advice_sol['MA'],
+            advice_sol['MACD'],
+        ],
     }
 
-    # Voeg advies toe aan de tabel
-    for key in advice_wif:
-        table_data[key] = [advice_wif[key], advice_sol[key]]
-
-    df = pd.DataFrame(table_data)
-
-    # Toon de tabel
-    st.table(df)
-
-    # Controleer of het advies is veranderd en stuur meldingen
-    for key in advice_wif:
-        if advice_wif[key] != advice_sol[key]:  # Controleer verschil in advies
-            title = f"Advies verandering voor {key}"
-            message = f"Nieuw advies voor WIF: {advice_wif[key]}, Nieuw advies voor SOL: {advice_sol[key]}"
-            send_push_notification(title, message)
-
-# Auto-refresh functie met een bepaalde interval
-time.sleep(10)
-st.experimental_rerun()  # Vervang de oneindige loop en zorgt voor een automatische refresh
+    # Controleer of de lengte van de arrays gelijk is
+    if all(len(arr) == len(table_data['Kenmerk']) for arr in table_data.values()):
+        # Maak DataFrame voor de tabel
+        df = pd.DataFrame(table_data)
+        st.table(df)
+    else:
+        st.error("Fout bij het maken van de tabel: arrays zijn niet van dezelfde lengte.")
+else:
+    st.error("Niet genoeg gegevens om berekeningen uit te voeren.")
