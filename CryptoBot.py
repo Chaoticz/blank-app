@@ -127,58 +127,57 @@ st.title("Crypto Overzicht: WIF en SOL")
 # Stuur startmelding
 send_push_notification("Crypto Bot Actief", "De Crypto beslissingsbot is nu actief.")
 
-# Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
-current_price_wif = get_crypto_price(API_KEY, 'WIF')
-current_price_sol = get_crypto_price(API_KEY, 'SOL')
-historical_data_wif = get_historical_data(API_KEY, 'WIF')
-historical_data_sol = get_historical_data(API_KEY, 'SOL')
-
 # Voor de prijsdata (bijv. laatste 200 prijzen voor MA en MACD)
 price_history_wif = []
 price_history_sol = []
 
-# Check of prijzen en historische gegevens succesvol zijn opgehaald
-if current_price_wif is not None and historical_data_wif is not None:
-    price_history_wif.append(current_price_wif)
+# Streamlit knop om het proces te starten
+if st.button('Start prijsmonitor'):
+    while True:
+        # Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
+        current_price_wif = get_crypto_price(API_KEY, 'WIF')
+        current_price_sol = get_crypto_price(API_KEY, 'SOL')
+        
+        # Voeg de huidige prijs toe aan de prijs geschiedenis
+        if current_price_wif is not None:
+            price_history_wif.append(current_price_wif)
+        if current_price_sol is not None:
+            price_history_sol.append(current_price_sol)
 
-if current_price_sol is not None and historical_data_sol is not None:
-    price_history_sol.append(current_price_sol)
+        # Controleer of we genoeg gegevens hebben
+        if len(price_history_wif) >= 200 and len(price_history_sol) >= 200:
+            # Bereken advies voor WIF en SOL
+            advice_wif = decision_strategy(get_historical_data(API_KEY, 'WIF'), price_history_wif)
+            advice_sol = decision_strategy(get_historical_data(API_KEY, 'SOL'), price_history_sol)
 
-# Zorg ervoor dat de prijs geschiedenis de nodige lengte heeft voor berekeningen
-if len(price_history_wif) >= 200 and len(price_history_sol) >= 200:
-    # Bereken advies voor WIF en SOL
-    advice_wif = decision_strategy(historical_data_wif, price_history_wif)
-    advice_sol = decision_strategy(historical_data_sol, price_history_sol)
+            # Maak een tabel met de gegevens van zowel WIF als SOL
+            table_data = {
+                'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'RSI', 'MA', 'MACD'],
+                'WIF': [
+                    f"{current_price_wif:.2f}",
+                    f"{get_historical_data(API_KEY, 'WIF')['priceChange']:.2f}",
+                    f"{get_historical_data(API_KEY, 'WIF')['volume']:.2f}",
+                    f"{get_historical_data(API_KEY, 'WIF')['last']:.2f}",
+                    advice_wif['RSI'],
+                    advice_wif['MA'],
+                    advice_wif['MACD'],
+                ],
+                'SOL': [
+                    f"{current_price_sol:.2f}",
+                    f"{get_historical_data(API_KEY, 'SOL')['priceChange']:.2f}",
+                    f"{get_historical_data(API_KEY, 'SOL')['volume']:.2f}",
+                    f"{get_historical_data(API_KEY, 'SOL')['last']:.2f}",
+                    advice_sol['RSI'],
+                    advice_sol['MA'],
+                    advice_sol['MACD'],
+                ],
+            }
 
-    # Maak een tabel met de gegevens van zowel WIF als SOL
-    table_data = {
-        'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'RSI', 'MA', 'MACD'],
-        'WIF': [
-            f"{current_price_wif:.2f}",
-            f"{historical_data_wif['priceChange']:.2f}",
-            f"{historical_data_wif['volume']:.2f}",
-            f"{historical_data_wif['last']:.2f}",
-            advice_wif['RSI'],
-            advice_wif['MA'],
-            advice_wif['MACD'],
-        ],
-        'SOL': [
-            f"{current_price_sol:.2f}",
-            f"{historical_data_sol['priceChange']:.2f}",
-            f"{historical_data_sol['volume']:.2f}",
-            f"{historical_data_sol['last']:.2f}",
-            advice_sol['RSI'],
-            advice_sol['MA'],
-            advice_sol['MACD'],
-        ],
-    }
-
-    # Controleer of de lengte van de arrays gelijk is
-    if all(len(arr) == len(table_data['Kenmerk']) for arr in table_data.values()):
-        # Maak DataFrame voor de tabel
-        df = pd.DataFrame(table_data)
-        st.table(df)
-    else:
-        st.error("Fout bij het maken van de tabel: arrays zijn niet van dezelfde lengte.")
-else:
-    st.error("Niet genoeg gegevens om berekeningen uit te voeren.")
+            # Maak DataFrame voor de tabel
+            df = pd.DataFrame(table_data)
+            st.table(df)
+        else:
+            st.warning("Niet genoeg gegevens om berekeningen uit te voeren.")
+        
+        # Wacht 10 seconden voordat je de volgende prijs opvraagt
+        time.sleep(10)
