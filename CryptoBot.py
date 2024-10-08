@@ -131,10 +131,10 @@ send_push_notification("Crypto Bot Actief", "De Crypto beslissingsbot is nu acti
 price_history_wif = []
 price_history_sol = []
 
-# Streamlit knop om het proces te starten
-if st.button('Start prijsmonitor'):
+# Functie om de prijsmonitor te starten
+def start_price_monitor():
     while True:
-        # Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
+        # Verkrijg huidige prijzen voor WIF en SOL
         current_price_wif = get_crypto_price(API_KEY, 'WIF')
         current_price_sol = get_crypto_price(API_KEY, 'SOL')
         
@@ -177,7 +177,11 @@ if st.button('Start prijsmonitor'):
             df = pd.DataFrame(table_data)
             st.table(df)
         else:
-            st.warning("Niet genoeg gegevens om berekeningen uit te voeren.")
-        
+            st.warning("Niet genoeg gegevens om berekeningen uit te voeren. Wacht op meer prijsgegevens...")
+
         # Wacht 10 seconden voordat je de volgende prijs opvraagt
         time.sleep(10)
+
+# Start de prijsmonitor bij het klikken op de knop
+if st.button('Start prijsmonitor'):
+    start_price_monitor()
