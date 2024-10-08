@@ -122,17 +122,18 @@ while True:
         table_placeholder.table(df)
 
         # Controleer of het advies is veranderd voor WIF
-        if previous_advice_wif != current_advice_wif:
+        if previous_advice_wif is None or current_advice_wif != previous_advice_wif:
             title = "Advies verandering voor WIF"
             message = f"Nieuw advies: {current_advice_wif}"
             send_push_notification(title, message)
             previous_advice_wif = current_advice_wif
 
         # Controleer of het advies is veranderd voor SOL
-        if previous_advice_sol != current_advice_sol:
+        if previous_advice_sol is None or current_advice_sol != previous_advice_sol:
             title = "Advies verandering voor SOL"
             message = f"Nieuw advies: {current_advice_sol}"
             send_push_notification(title, message)
             previous_advice_sol = current_advice_sol
 
-    time.sleep(10)  # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
+    # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
+    time.sleep(10)
