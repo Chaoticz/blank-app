@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-import time
 import numpy as np
 import pandas as pd
+import time
 
 # Voer hier je Bitvavo API-sleutel in
 API_KEY = '275ef1c47fe97b28e0a31d998ec4ec380bca4c1c2b0c3549a72cacaf98a02bc6'  # Vervang dit door je echte API-sleutel
@@ -56,81 +56,126 @@ def get_historical_data(api_key, symbol, market='EUR'):
         st.error(f"Fout bij het ophalen van historische gegevens voor {symbol}.")
         return None
 
-# Functie voor de beslissingslogica
-def decision_strategy(historical_data):
-    price_change = historical_data['priceChange']
-    ma_short = historical_data['last']  # Voorbeeld voor een kort MA
-    ma_long = historical_data['open']  # Voorbeeld voor een lang MA
+# Functie om de RSI te berekenen
+def calculate_rsi(prices, window=14):
+    if len(prices) < window:
+        return None
+    delta = np.diff(prices)
+    gain = (delta[delta > 0]).sum() / window
+    loss = (-delta[delta < 0]).sum() / window
+    
+    rs = gain / loss if loss > 0 else 0
+    return 100 - (100 / (1 + rs))
 
-    # Eenvoudige beslissingslogica
-    if price_change > 0:
-        return "Kopen"
-    elif price_change < 0:
-        return "Verkopen"
-    else:
-        return "Houden"
+# Functie om de Moving Average te berekenen
+def calculate_moving_average(prices, window=14):
+    if len(prices) < window:
+        return None
+    return np.mean(prices[-window:])
+
+# Functie om de MACD te berekenen
+def calculate_macd(prices, short_window=12, long_window=26, signal_window=9):
+    if len(prices) < long_window:
+        return None, None
+    short_ema = np.mean(prices[-short_window:])
+    long_ema = np.mean(prices[-long_window:])
+    macd_line = short_ema - long_ema
+    signal_line = np.mean(prices[-signal_window:])
+    return macd_line, signal_line
+
+# Functie voor de beslissingslogica
+def decision_strategy(historical_data, prices):
+    # Initialiseer adviezen
+    advice = {
+        'RSI': "Houden",
+        'MA': "Houden",
+        'MACD': "Houden"
+    }
+
+    # Bereken indicatoren
+    rsi = calculate_rsi(prices)
+    ma_short = calculate_moving_average(prices, window=50)  # Korte termijn MA
+    ma_long = calculate_moving_average(prices, window=200)  # Lange termijn MA
+    macd, signal = calculate_macd(prices)
+
+    # RSI logica
+    if rsi is not None:
+        if rsi < 30:
+            advice['RSI'] = "Kopen"
+        elif rsi > 70:
+            advice['RSI'] = "Verkopen"
+
+    # MA logica
+    if ma_short and ma_long:
+        if ma_short > ma_long:
+            advice['MA'] = "Kopen"
+        elif ma_short < ma_long:
+            advice['MA'] = "Verkopen"
+
+    # MACD logica
+    if macd is not None and signal is not None:
+        if macd > signal:
+            advice['MACD'] = "Kopen"
+        elif macd < signal:
+            advice['MACD'] = "Verkopen"
+
+    return advice
 
 # Streamlit app setup
 st.title("Crypto Overzicht: WIF en SOL")
 
-# Maak een lege placeholder voor de dynamische tabel
-table_placeholder = st.empty()
+# Verkrijg huidige prijzen en historische gegevens voor WIF en SOL
+current_price_wif = get_crypto_price(API_KEY, 'WIF')
+current_price_sol = get_crypto_price(API_KEY, 'SOL')
+historical_data_wif = get_historical_data(API_KEY, 'WIF')
+historical_data_sol = get_historical_data(API_KEY, 'SOL')
 
-previous_advice_wif = None
-previous_advice_sol = None
+# Voor de prijsdata (bijv. laatste 200 prijzen voor MA en MACD)
+price_history_wif = []
+price_history_sol = []
 
-# Loop om de prijs elke 10 seconden te verversen
-while True:
-    # Verkrijg huidige prijzen en historische gegevens
-    current_price_wif = get_crypto_price(API_KEY, 'WIF')
-    current_price_sol = get_crypto_price(API_KEY, 'SOL')
-    
-    historical_data_wif = get_historical_data(API_KEY, 'WIF')
-    historical_data_sol = get_historical_data(API_KEY, 'SOL')
+if current_price_wif and historical_data_wif and current_price_sol and historical_data_sol:
+    # Voeg huidige prijzen toe aan de geschiedenis
+    price_history_wif.append(current_price_wif)
+    price_history_sol.append(current_price_sol)
 
-    if current_price_wif is not None and historical_data_wif is not None and \
-       current_price_sol is not None and historical_data_sol is not None:
-        
-        # Bereken advies voor WIF en SOL
-        current_advice_wif = decision_strategy(historical_data_wif)
-        current_advice_sol = decision_strategy(historical_data_sol)
+    # Bereken advies voor WIF en SOL
+    advice_wif = decision_strategy(historical_data_wif, price_history_wif)
+    advice_sol = decision_strategy(historical_data_sol, price_history_sol)
 
-        # Maak een tabel met de gegevens van zowel WIF als SOL
-        table_data = {
-            'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'Advies'],
-            'WIF': [
-                f"{current_price_wif:.2f}",
-                f"{historical_data_wif['priceChange']:.2f}",
-                f"{historical_data_wif['volume']:.2f}",
-                f"{historical_data_wif['last']:.2f}",
-                current_advice_wif
-            ],
-            'SOL': [
-                f"{current_price_sol:.2f}",
-                f"{historical_data_sol['priceChange']:.2f}",
-                f"{historical_data_sol['volume']:.2f}",
-                f"{historical_data_sol['last']:.2f}",
-                current_advice_sol
-            ]
-        }
-        
-        df = pd.DataFrame(table_data)
+    # Maak een tabel met de gegevens van zowel WIF als SOL
+    table_data = {
+        'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs'],
+        'WIF': [
+            f"{current_price_wif:.2f}",
+            f"{historical_data_wif['priceChange']:.2f}",
+            f"{historical_data_wif['volume']:.2f}",
+            f"{historical_data_wif['last']:.2f}",
+        ],
+        'SOL': [
+            f"{current_price_sol:.2f}",
+            f"{historical_data_sol['priceChange']:.2f}",
+            f"{historical_data_sol['volume']:.2f}",
+            f"{historical_data_sol['last']:.2f}",
+        ]
+    }
 
-        # Vernieuw de tabel binnen hetzelfde element
-        table_placeholder.table(df)
+    # Voeg advies toe aan de tabel
+    for key in advice_wif:
+        table_data[key] = [advice_wif[key], advice_sol[key]]
 
-        # Controleer of het advies is veranderd voor WIF
-        if previous_advice_wif != current_advice_wif:
-            title = "Advies verandering voor WIF"
-            message = f"Nieuw advies: {current_advice_wif}"
+    df = pd.DataFrame(table_data)
+
+    # Toon de tabel
+    st.table(df)
+
+    # Controleer of het advies is veranderd en stuur meldingen
+    for key in advice_wif:
+        if advice_wif[key] != advice_sol[key]:  # Controleer verschil in advies
+            title = f"Advies verandering voor {key}"
+            message = f"Nieuw advies voor WIF: {advice_wif[key]}, Nieuw advies voor SOL: {advice_sol[key]}"
             send_push_notification(title, message)
-            previous_advice_wif = current_advice_wif
 
-        # Controleer of het advies is veranderd voor SOL
-        if previous_advice_sol != current_advice_sol:
-            title = "Advies verandering voor SOL"
-            message = f"Nieuw advies: {current_advice_sol}"
-            send_push_notification(title, message)
-            previous_advice_sol = current_advice_sol
-
-    time.sleep(10)  # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
+# Auto-refresh functie met een bepaalde interval
+time.sleep(10)
+st.experimental_rerun()  # Vervang de oneindige loop en zorgt voor een automatische refresh
