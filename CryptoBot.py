@@ -4,9 +4,9 @@ import time
 import pandas as pd
 
 # Voer hier je Bitvavo API-sleutel in
-API_KEY = 'YOUR_API_KEY'  # Vervang dit door je echte API-sleutel
-PUSHOVER_USER_KEY = 'YOUR_USER_KEY'  # Vervang dit door je Pushover User Key
-PUSHOVER_API_TOKEN = 'YOUR_API_TOKEN'  # Vervang dit door je Pushover API Token
+API_KEY = '275ef1c47fe97b28e0a31d998ec4ec380bca4c1c2b0c3549a72cacaf98a02bc6'  # Vervang dit door je echte API-sleutel
+PUSHOVER_USER_KEY = 'ucag73yvz83gz9b6fz31jqux4u7i7p'  # Vervang dit door je Pushover User Key
+PUSHOVER_API_TOKEN = 'athjqvpye1dtgo4326xqg4vmu1n153'  # Vervang dit door je Pushover API Token
 
 # Functie om Pushover notificatie te sturen
 def send_push_notification(title, message):
