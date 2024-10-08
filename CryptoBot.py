@@ -124,14 +124,19 @@ while True:
         # Vernieuw de tabel binnen hetzelfde element
         table_placeholder.table(df)
 
+        # Stuur een melding dat het programma actief is bij de eerste run
+        if first_run:
+            send_push_notification("Programma Actief", "Het cryptocurrency-monitoring programma is nu actief.")
+            first_run = False  # Zet de eerste run op False na het versturen van de melding
+
         # Controleer of het advies is veranderd voor WIF
-        if not first_run and (previous_advice_wif != current_advice_wif):
+        if previous_advice_wif is not None and (previous_advice_wif != current_advice_wif):
             title = "Advies verandering voor WIF"
             message = f"Nieuw advies: {current_advice_wif}"
             send_push_notification(title, message)
 
         # Controleer of het advies is veranderd voor SOL
-        if not first_run and (previous_advice_sol != current_advice_sol):
+        if previous_advice_sol is not None and (previous_advice_sol != current_advice_sol):
             title = "Advies verandering voor SOL"
             message = f"Nieuw advies: {current_advice_sol}"
             send_push_notification(title, message)
@@ -139,9 +144,6 @@ while True:
         # Update de vorige adviezen
         previous_advice_wif = current_advice_wif
         previous_advice_sol = current_advice_sol
-
-        # Zet de eerste run op False na de eerste ronde
-        first_run = False
 
     # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
     time.sleep(10)
