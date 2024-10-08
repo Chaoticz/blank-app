@@ -1,147 +1,83 @@
-import streamlit as st
+import os
 import requests
-import time
 import pandas as pd
+import numpy as np
+import streamlit as st
+import time
 
-# Voer hier je Bitvavo API-sleutel in
-API_KEY = '275ef1c47fe97b28e0a31d998ec4ec380bca4c1c2b0c3549a72cacaf98a02bc6'  # Vervang dit door je echte API-sleutel
-PUSHOVER_USER_KEY = 'ucag73yvz83gz9b6fz31jqux4u7i7p'  # Vervang dit door je Pushover User Key
-PUSHOVER_API_TOKEN = 'athjqvpye1dtgo4326xqg4vmu1n153'  # Vervang dit door je Pushover API Token
+# Bitvavo API settings
+BITVAVO_API_KEY = os.getenv('BITVAVO_API_KEY')
+BITVAVO_API_SECRET = os.getenv('BITVAVO_API_SECRET')
+PUSHOVER_USER_KEY = os.getenv('PUSHOVER_USER_KEY')
+PUSHOVER_API_TOKEN = os.getenv('PUSHOVER_API_TOKEN')
 
-# Functie om Pushover notificatie te sturen
-def send_push_notification(title, message):
-    url = "https://api.pushover.net/1/messages.json"
-    data = {
-        "token": PUSHOVER_API_TOKEN,
-        "user": PUSHOVER_USER_KEY,
-        "title": title,
-        "message": message
-    }
-    response = requests.post(url, data=data)
-    if response.status_code == 200:
-        print("Melding succesvol verzonden!")
-    else:
-        print(f"Fout bij het verzenden van de melding. Status: {response.status_code}")
+BASE_URL = 'https://api.bitvavo.com/v2/'
 
-# Functie om de huidige prijs van een cryptocurrency op te halen
-def get_crypto_price(api_key, symbol, market='EUR'):
-    url = f"https://api.bitvavo.com/v2/ticker/price?market={symbol}-{market}"
-    headers = {"X-Bitvavo-Access-Key": api_key}
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200:
-        return float(response.json()['price'])
-    else:
-        st.error(f"Fout bij het ophalen van de prijs voor {symbol}.")
-        return None
+def get_current_prices(crypto_pairs):
+    prices = {}
+    for pair in crypto_pairs:
+        response = requests.get(f"{BASE_URL}{pair}/ticker")
+        prices[pair] = float(response.json()['last'])
+    return prices
 
-# Functie om historische gegevens op te halen
-def get_historical_data(api_key, symbol, market='EUR'):
-    url = f"https://api.bitvavo.com/v2/ticker/24h?market={symbol}-{market}"
-    headers = {"X-Bitvavo-Access-Key": api_key}
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code == 200:
-        data = response.json()
-        return {
-            'priceChange': float(data.get('priceChange', 0)),
-            'open': float(data.get('open', 0)),
-            'high': float(data.get('high', 0)),
-            'low': float(data.get('low', 0)),
-            'volume': float(data.get('volume', 0)),
-            'last': float(data.get('last', 0))
-        }
-    else:
-        st.error(f"Fout bij het ophalen van historische gegevens voor {symbol}.")
-        return None
+def get_historical_data(pair, days=14):
+    response = requests.get(f"{BASE_URL}{pair}/candles?interval=1day&start=now-{days}d&end=now")
+    data = response.json()
+    return pd.DataFrame(data)
 
-# Functie voor de beslissingslogica
-def decision_strategy(historical_data):
-    price_change = historical_data['priceChange']
+def calculate_rsi(data, period=14):
+    delta = data['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
-    # Eenvoudige beslissingslogica
-    if price_change > 0:
+def calculate_sma(data, period):
+    return data['close'].rolling(window=period).mean()
+
+def calculate_ema(data, period):
+    return data['close'].ewm(span=period, adjust=False).mean()
+
+def send_notification(message):
+    requests.post("https://api.pushover.net/1/messages.json", data={
+        'token': PUSHOVER_API_TOKEN,
+        'user': PUSHOVER_USER_KEY,
+        'message': message
+    })
+
+def generate_signal(rsi, sma_short, sma_long):
+    if rsi < 30 and sma_short > sma_long:
         return "Kopen"
-    elif price_change < 0:
+    elif rsi > 70 and sma_short < sma_long:
         return "Verkopen"
     else:
         return "Houden"
 
-# Streamlit app setup
-st.title("Crypto Overzicht: WIF en SOL")
+def main():
+    st.title("Crypto Monitoring App")
+    crypto_pairs = ['BTC-EUR', 'ETH-EUR']
+    previous_signal = {}
 
-# Maak een lege placeholder voor de dynamische tabel
-table_placeholder = st.empty()
+    while True:
+        prices = get_current_prices(crypto_pairs)
+        for pair in crypto_pairs:
+            historical_data = get_historical_data(pair)
+            rsi = calculate_rsi(historical_data)
+            sma_short = calculate_sma(historical_data, 5)
+            sma_long = calculate_sma(historical_data, 20)
 
-# Initialiseer de vorige adviezen
-previous_advice_wif = None
-previous_advice_sol = None
+            current_rsi = rsi.iloc[-1]
+            current_sma_short = sma_short.iloc[-1]
+            current_sma_long = sma_long.iloc[-1]
+            signal = generate_signal(current_rsi, current_sma_short, current_sma_long)
 
-# Initialisatieflag om de eerste meldingen uit te schakelen
-first_run = True
+            if pair not in previous_signal or previous_signal[pair] != signal:
+                send_notification(f"{pair}: {signal}")
+                previous_signal[pair] = signal
 
-# Loop voor prijsmonitoring
-while True:
-    # Verkrijg huidige prijzen en historische gegevens
-    current_price_wif = get_crypto_price(API_KEY, 'WIF')
-    current_price_sol = get_crypto_price(API_KEY, 'SOL')
-    
-    historical_data_wif = get_historical_data(API_KEY, 'WIF')
-    historical_data_sol = get_historical_data(API_KEY, 'SOL')
+        st.write(prices)
+        time.sleep(10)
 
-    if current_price_wif is not None and historical_data_wif is not None and \
-       current_price_sol is not None and historical_data_sol is not None:
-        
-        # Bereken advies voor WIF en SOL
-        current_advice_wif = decision_strategy(historical_data_wif)
-        current_advice_sol = decision_strategy(historical_data_sol)
-
-        # Debug: print de huidige en vorige adviezen
-        print(f"Huidig advies WIF: {current_advice_wif}, Vorig advies WIF: {previous_advice_wif}")
-        print(f"Huidig advies SOL: {current_advice_sol}, Vorig advies SOL: {previous_advice_sol}")
-
-        # Maak een tabel met de gegevens van zowel WIF als SOL
-        table_data = {
-            'Kenmerk': ['Huidige Prijs (EUR)', 'Prijsverandering (24h)', 'Volume', 'Laatste Prijs', 'Advies'],
-            'WIF': [
-                f"{current_price_wif:.2f}",
-                f"{historical_data_wif['priceChange']:.2f}",
-                f"{historical_data_wif['volume']:.2f}",
-                f"{historical_data_wif['last']:.2f}",
-                current_advice_wif
-            ],
-            'SOL': [
-                f"{current_price_sol:.2f}",
-                f"{historical_data_sol['priceChange']:.2f}",
-                f"{historical_data_sol['volume']:.2f}",
-                f"{historical_data_sol['last']:.2f}",
-                current_advice_sol
-            ]
-        }
-        
-        df = pd.DataFrame(table_data)
-
-        # Vernieuw de tabel binnen hetzelfde element
-        table_placeholder.table(df)
-
-        # Controleer of het advies is veranderd voor WIF
-        if not first_run and (previous_advice_wif != current_advice_wif):
-            title = "Advies verandering voor WIF"
-            message = f"Nieuw advies: {current_advice_wif}"
-            send_push_notification(title, message)
-
-        # Controleer of het advies is veranderd voor SOL
-        if not first_run and (previous_advice_sol != current_advice_sol):
-            title = "Advies verandering voor SOL"
-            message = f"Nieuw advies: {current_advice_sol}"
-            send_push_notification(title, message)
-
-        # Update de vorige adviezen
-        previous_advice_wif = current_advice_wif
-        previous_advice_sol = current_advice_sol
-
-        # Zet de eerste run op False na de eerste ronde
-        first_run = False
-
-    # Wacht 10 seconden voordat de gegevens opnieuw worden opgehaald
-    time.sleep(10)
+if __name__ == "__main__":
+    main()
